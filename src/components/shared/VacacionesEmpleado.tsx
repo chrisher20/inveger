@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { HistorialVacaciones, SolicitudVacaciones } from '../../types'
-import { differenceInYears, addDays, format, isBefore, startOfTomorrow } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { differenceInYears, addDays, format, startOfTomorrow } from 'date-fns'
 
-// Cálculo de días según Código de Trabajo Honduras
 function diasSegunAntiguedad(fechaIngreso: string): number {
   const anos = differenceInYears(new Date(), new Date(fechaIngreso))
   if (anos < 1) return 0
@@ -21,31 +19,24 @@ export default function VacacionesEmpleado() {
   const [historial, setHistorial] = useState<HistorialVacaciones[]>([])
   const [solicitudes, setSolicitudes] = useState<SolicitudVacaciones[]>([])
   const [diasSeleccionados, setDiasSeleccionados] = useState<string[]>([])
+  const [justificacion, setJustificacion] = useState('')
   const [notificaciones, setNotificaciones] = useState<{ mensaje: string; fecha: string }[]>([])
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
 
   const fetchData = async () => {
     if (!user) return
-
     const { data: hist } = await supabase
-      .from('historial_vacaciones')
-      .select('*')
-      .eq('empleado_id', user.id)
-      .order('fecha', { ascending: false })
+      .from('historial_vacaciones').select('*')
+      .eq('empleado_id', user.id).order('fecha', { ascending: false })
 
     const { data: sols } = await supabase
-      .from('solicitudes_vacaciones')
-      .select('*')
-      .eq('empleado_id', user.id)
-      .order('fecha_solicitud', { ascending: false })
+      .from('solicitudes_vacaciones').select('*')
+      .eq('empleado_id', user.id).order('fecha_solicitud', { ascending: false })
 
     const { data: notifs } = await supabase
-      .from('notificaciones')
-      .select('mensaje, fecha')
-      .eq('usuario_id', user.id)
-      .order('fecha', { ascending: false })
-      .limit(5)
+      .from('notificaciones').select('mensaje, fecha')
+      .eq('usuario_id', user.id).order('fecha', { ascending: false }).limit(5)
 
     if (hist) {
       setHistorial(hist as HistorialVacaciones[])
@@ -53,7 +44,6 @@ export default function VacacionesEmpleado() {
     } else {
       setSaldo(diasSegunAntiguedad(user.fecha_ingreso))
     }
-
     if (sols) setSolicitudes(sols as SolicitudVacaciones[])
     if (notifs) setNotificaciones(notifs as { mensaje: string; fecha: string }[])
   }
@@ -66,7 +56,6 @@ export default function VacacionesEmpleado() {
     )
   }
 
-  // Generar próximos 60 días a partir de mañana
   const diasDisponibles = Array.from({ length: 60 }, (_, i) =>
     format(addDays(startOfTomorrow(), i), 'yyyy-MM-dd')
   )
@@ -75,7 +64,6 @@ export default function VacacionesEmpleado() {
     if (!user || diasSeleccionados.length === 0) return
     setLoading(true)
     setMsg('')
-
     const fechaInicio = diasSeleccionados[0]
     const fechaFin = diasSeleccionados[diasSeleccionados.length - 1]
 
@@ -86,11 +74,13 @@ export default function VacacionesEmpleado() {
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
       estado: 'pendiente',
+      justificacion,
       fecha_solicitud: new Date().toISOString(),
     }])
 
     setMsg(`✅ Solicitud enviada: ${diasSeleccionados.length} día(s) del ${fechaInicio} al ${fechaFin}`)
     setDiasSeleccionados([])
+    setJustificacion('')
     fetchData()
     setLoading(false)
   }
@@ -106,7 +96,6 @@ export default function VacacionesEmpleado() {
     <div className="max-w-2xl space-y-6">
       <h2 className="text-xl font-bold text-primary-600">🏖️ Mis Vacaciones</h2>
 
-      {/* Saldo */}
       <div className="bg-primary-50 border border-primary-200 rounded-2xl p-5 flex items-center justify-between">
         <div>
           <p className="text-sm text-primary-600 font-medium">Días disponibles</p>
@@ -118,7 +107,6 @@ export default function VacacionesEmpleado() {
         </div>
       </div>
 
-      {/* Notificaciones */}
       {notificaciones.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="font-semibold text-blue-700 text-sm mb-2">🔔 Notificaciones</p>
@@ -128,26 +116,20 @@ export default function VacacionesEmpleado() {
         </div>
       )}
 
-      {/* Solicitar vacaciones */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h3 className="font-semibold text-gray-700 mb-3">Solicitar vacaciones</h3>
-        <p className="text-sm text-gray-500 mb-3">Selecciona los días que deseas (a partir de mañana):</p>
+        <p className="text-sm text-gray-500 mb-3">Selecciona los días (a partir de mañana):</p>
 
         <div className="grid grid-cols-7 gap-1 mb-4">
-          {['D','L','M','M','J','V','S'].map((d,i) => (
+          {['D','L','M','M','J','V','S'].map((d, i) => (
             <div key={i} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
           ))}
           {diasDisponibles.map(fecha => {
             const d = new Date(fecha + 'T00:00:00')
             const seleccionado = diasSeleccionados.includes(fecha)
             return (
-              <button
-                key={fecha}
-                onClick={() => toggleDia(fecha)}
-                className={`rounded-lg py-1.5 text-xs font-medium transition ${
-                  seleccionado ? 'bg-primary-500 text-white' : 'bg-gray-100 hover:bg-primary-100 text-gray-700'
-                }`}
-              >
+              <button key={fecha} onClick={() => toggleDia(fecha)}
+                className={`rounded-lg py-1.5 text-xs font-medium transition ${seleccionado ? 'bg-primary-500 text-white' : 'bg-gray-100 hover:bg-primary-100 text-gray-700'}`}>
                 {format(d, 'd')}
               </button>
             )
@@ -162,13 +144,18 @@ export default function VacacionesEmpleado() {
           </div>
         )}
 
+        <div className="mb-3">
+          <label className="text-sm font-medium text-gray-700">Justificación (opcional)</label>
+          <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)} rows={2}
+            placeholder="Motivo de la solicitud..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+        </div>
+
         {msg && <p className="text-green-600 text-sm mb-2">{msg}</p>}
 
-        <button
-          onClick={handleSolicitar}
+        <button onClick={handleSolicitar}
           disabled={diasSeleccionados.length === 0 || loading || diasSeleccionados.length > saldo}
-          className="w-full bg-primary-500 text-white py-2 rounded-lg font-medium hover:bg-primary-600 transition disabled:opacity-50"
-        >
+          className="w-full bg-primary-500 text-white py-2 rounded-lg font-medium hover:bg-primary-600 transition disabled:opacity-50">
           {loading ? 'Enviando...' : `Confirmar solicitud (${diasSeleccionados.length} día${diasSeleccionados.length !== 1 ? 's' : ''})`}
         </button>
         {diasSeleccionados.length > saldo && (
@@ -176,7 +163,6 @@ export default function VacacionesEmpleado() {
         )}
       </div>
 
-      {/* Historial solicitudes */}
       {solicitudes.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <h3 className="font-semibold text-gray-700 mb-3">Mis solicitudes</h3>
@@ -186,6 +172,9 @@ export default function VacacionesEmpleado() {
                 <div>
                   <p className="font-medium">{s.fecha_inicio} → {s.fecha_fin}</p>
                   <p className="text-gray-500">{s.dias_solicitados} días</p>
+                  {(s as SolicitudVacaciones & { justificacion?: string }).justificacion && (
+                    <p className="text-gray-500 text-xs">Motivo: {(s as SolicitudVacaciones & { justificacion?: string }).justificacion}</p>
+                  )}
                   {s.comentario_admin && <p className="text-gray-600 text-xs">Admin: {s.comentario_admin}</p>}
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_COLORS[s.estado]}`}>
@@ -197,7 +186,6 @@ export default function VacacionesEmpleado() {
         </div>
       )}
 
-      {/* Historial acumulación/descuento */}
       {historial.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <h3 className="font-semibold text-gray-700 mb-3">Historial de días</h3>

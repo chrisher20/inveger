@@ -25,6 +25,7 @@ const emptyForm = {
 export default function GestionUsuarios() {
   const [usuarios, setUsuarios] = useState<AppUser[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [editUsuario, setEditUsuario] = useState<AppUser | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
@@ -41,12 +42,57 @@ export default function GestionUsuarios() {
     setForm(f => ({ ...f, [name]: value }))
   }
 
+  const handleEditar = (u: AppUser) => {
+    setEditUsuario(u)
+    setForm({
+      email: u.email,
+      password: '',
+      nombre: u.nombre,
+      identidad: u.identidad ?? '',
+      fecha_nacimiento: u.fecha_nacimiento ?? '',
+      fecha_ingreso: u.fecha_ingreso,
+      salario: String(u.salario),
+      tipo_usuario: u.tipo_usuario,
+      subtipo_tecnico: u.subtipo_tecnico ?? '',
+      role: u.role,
+    })
+    setShowForm(true)
+    setMsg('')
+  }
+
+  const handleGuardarEdicion = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editUsuario) return
+    setLoading(true)
+    setMsg('')
+
+    const { error } = await supabase.from('usuarios').update({
+      nombre: form.nombre,
+      identidad: form.identidad,
+      fecha_nacimiento: form.fecha_nacimiento,
+      fecha_ingreso: form.fecha_ingreso,
+      salario: Number(form.salario),
+      tipo_usuario: form.tipo_usuario,
+      subtipo_tecnico: form.tipo_usuario === 'tecnico' ? form.subtipo_tecnico : null,
+      role: form.role,
+    }).eq('id', editUsuario.id)
+
+    if (error) {
+      setMsg('Error al actualizar: ' + error.message)
+    } else {
+      setMsg('✅ Perfil actualizado correctamente')
+      setShowForm(false)
+      setEditUsuario(null)
+      fetchUsuarios()
+    }
+    setLoading(false)
+  }
+
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setMsg('')
 
-    // Registrar usuario con signUp (no requiere service_role)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
@@ -58,8 +104,6 @@ export default function GestionUsuarios() {
       return
     }
 
-    // Confirmar email automáticamente via SQL (ya tenemos RLS abierta)
-    // Insertar en tabla usuarios
     const { error: dbError } = await supabase.from('usuarios').insert([{
       id: authData.user.id,
       email: form.email,
@@ -76,7 +120,7 @@ export default function GestionUsuarios() {
     if (dbError) {
       setMsg('Error al guardar datos: ' + dbError.message)
     } else {
-      setMsg('✅ Usuario creado. Ve a Supabase → Authentication → Users y confirma el email manualmente si no puede ingresar.')
+      setMsg('✅ Usuario creado correctamente')
       setForm({ ...emptyForm })
       setShowForm(false)
       fetchUsuarios()
@@ -84,13 +128,21 @@ export default function GestionUsuarios() {
     setLoading(false)
   }
 
+  const camposEdicion = [
+    ['nombre', 'Nombre completo', 'text'],
+    ['identidad', 'Número de identidad', 'text'],
+    ['fecha_nacimiento', 'Fecha de nacimiento', 'date'],
+    ['fecha_ingreso', 'Fecha de ingreso', 'date'],
+    ['salario', 'Salario mensual (L.)', 'number'],
+  ] as [string, string, string][]
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-primary-600">👥 Gestión de Empleados</h2>
         <button
-          onClick={() => setShowForm(true)}
-          className="bg-primary-500 hover:bg-primary-600 text-white px-5 py-2 rounded-lg font-medium transition"
+          onClick={() => { setShowForm(true); setEditUsuario(null); setForm({ ...emptyForm }); setMsg('') }}
+          className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
         >
           + Nuevo Empleado
         </button>
@@ -101,8 +153,18 @@ export default function GestionUsuarios() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {usuarios.map(u => (
           <div key={u.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-sm space-y-1">
-            <p className="font-semibold text-gray-800 text-base">{u.nombre}</p>
-            <p className="text-gray-500">{TIPOS.find(t => t.value === u.tipo_usuario)?.label}</p>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-800 text-base">{u.nombre}</p>
+                <p className="text-gray-500">{TIPOS.find(t => t.value === u.tipo_usuario)?.label}</p>
+              </div>
+              <button
+                onClick={() => handleEditar(u)}
+                className="text-primary-500 hover:text-primary-700 text-xs font-medium border border-primary-200 px-2 py-1 rounded-lg transition"
+              >
+                ✏️ Editar
+              </button>
+            </div>
             <p><span className="font-medium">Identidad:</span> {u.identidad}</p>
             <p><span className="font-medium">Ingreso:</span> {u.fecha_ingreso}</p>
             <p><span className="font-medium">Salario:</span> L. {Number(u.salario).toLocaleString('es-HN')}</p>
@@ -116,40 +178,41 @@ export default function GestionUsuarios() {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 my-8">
-            <h3 className="text-lg font-bold text-primary-600 mb-4">Nuevo Empleado</h3>
-            <form onSubmit={handleCrear} className="space-y-3">
-              {([
-                ['email', 'Correo electrónico', 'email'],
-                ['password', 'Contraseña (mín. 8 caracteres)', 'password'],
-                ['nombre', 'Nombre completo', 'text'],
-                ['identidad', 'Número de identidad', 'text'],
-                ['fecha_nacimiento', 'Fecha de nacimiento', 'date'],
-                ['fecha_ingreso', 'Fecha de ingreso', 'date'],
-                ['salario', 'Salario mensual (L.)', 'number'],
-              ] as [string, string, string][]).map(([name, label, type]) => (
+            <h3 className="text-lg font-bold text-primary-600 mb-4">
+              {editUsuario ? `✏️ Editar: ${editUsuario.nombre}` : 'Nuevo Empleado'}
+            </h3>
+            <form onSubmit={editUsuario ? handleGuardarEdicion : handleCrear} className="space-y-3">
+
+              {!editUsuario && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Correo electrónico</label>
+                    <input name="email" type="email" value={form.email} onChange={handleChange} required
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Contraseña (mín. 8 caracteres)</label>
+                    <input name="password" type="password" value={form.password} onChange={handleChange} required minLength={8}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                </>
+              )}
+
+              {camposEdicion.map(([name, label, type]) => (
                 <div key={name}>
                   <label className="text-sm font-medium text-gray-700">{label}</label>
-                  <input
-                    name={name}
-                    type={type}
+                  <input name={name} type={type}
                     value={(form as Record<string, string>)[name]}
-                    onChange={handleChange}
-                    required
-                    minLength={name === 'password' ? 8 : undefined}
+                    onChange={handleChange} required
                     min={type === 'number' ? 0 : undefined}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500" />
                 </div>
               ))}
 
               <div>
                 <label className="text-sm font-medium text-gray-700">Tipo de usuario</label>
-                <select
-                  name="tipo_usuario"
-                  value={form.tipo_usuario}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
+                <select name="tipo_usuario" value={form.tipo_usuario} onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500">
                   {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
@@ -157,25 +220,16 @@ export default function GestionUsuarios() {
               {form.tipo_usuario === 'tecnico' && (
                 <div>
                   <label className="text-sm font-medium text-gray-700">Tipo de técnico</label>
-                  <input
-                    name="subtipo_tecnico"
-                    type="text"
-                    value={form.subtipo_tecnico}
-                    onChange={handleChange}
+                  <input name="subtipo_tecnico" type="text" value={form.subtipo_tecnico} onChange={handleChange}
                     placeholder="Ej: Técnico en radiología"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500" />
                 </div>
               )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700">Rol en el sistema</label>
-                <select
-                  name="role"
-                  value={form.role}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
+                <select name="role" value={form.role} onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500">
                   <option value="consultor">Consultor (solo ver)</option>
                   <option value="admin">Administrador (gestión completa)</option>
                 </select>
@@ -186,9 +240,9 @@ export default function GestionUsuarios() {
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={loading}
                   className="flex-1 bg-primary-500 text-white py-2 rounded-lg font-medium hover:bg-primary-600 transition disabled:opacity-60">
-                  {loading ? 'Creando...' : 'Crear Empleado'}
+                  {loading ? 'Guardando...' : editUsuario ? 'Guardar cambios' : 'Crear Empleado'}
                 </button>
-                <button type="button" onClick={() => { setShowForm(false); setMsg('') }}
+                <button type="button" onClick={() => { setShowForm(false); setEditUsuario(null); setMsg('') }}
                   className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-200 transition">
                   Cancelar
                 </button>

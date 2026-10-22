@@ -40,6 +40,7 @@ create table public.solicitudes_vacaciones (
   fecha_fin date not null,
   estado text not null default 'pendiente' check (estado in ('pendiente','aprobada','rechazada','en_negociacion')),
   comentario_admin text,
+  justificacion text,
   fecha_solicitud timestamptz default now()
 );
 

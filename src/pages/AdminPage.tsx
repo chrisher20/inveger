@@ -7,6 +7,7 @@ import Incentivos from '../components/shared/Incentivos'
 import HorasExtra from '../components/shared/HorasExtra'
 import BandejaVacaciones from '../components/admin/BandejaVacaciones'
 import GestionUsuarios from '../components/admin/GestionUsuarios'
+import VisitasMedicas from '../components/admin/VisitasMedicas'
 
 export default function AdminPage() {
   const [vista, setVista] = useState('inventario')
@@ -32,6 +33,12 @@ export default function AdminPage() {
           📬 Bandeja Solicitudes
         </button>
         <button
+          onClick={() => setVista('visitas')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${vista === 'visitas' ? 'bg-primary-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+        >
+          🏥 Visitas Médicas
+        </button>
+        <button
           onClick={() => setVista('gestion_usuarios')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${vista === 'gestion_usuarios' ? 'bg-primary-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
         >
@@ -46,6 +53,7 @@ export default function AdminPage() {
         {vista === 'incentivos' && <Incentivos />}
         {vista === 'horas_extra' && <HorasExtra />}
         {vista === 'bandeja' && <BandejaVacaciones />}
+        {vista === 'visitas' && <VisitasMedicas />}
         {vista === 'gestion_usuarios' && <GestionUsuarios />}
       </main>
     </div>
