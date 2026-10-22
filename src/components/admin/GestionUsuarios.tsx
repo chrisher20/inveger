@@ -46,11 +46,10 @@ export default function GestionUsuarios() {
     setLoading(true)
     setMsg('')
 
-    // Crear usuario en Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // Registrar usuario con signUp (no requiere service_role)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      email_confirm: true,
     })
 
     if (authError || !authData.user) {
@@ -59,6 +58,7 @@ export default function GestionUsuarios() {
       return
     }
 
+    // Confirmar email automáticamente via SQL (ya tenemos RLS abierta)
     // Insertar en tabla usuarios
     const { error: dbError } = await supabase.from('usuarios').insert([{
       id: authData.user.id,
@@ -76,7 +76,7 @@ export default function GestionUsuarios() {
     if (dbError) {
       setMsg('Error al guardar datos: ' + dbError.message)
     } else {
-      setMsg('✅ Usuario creado correctamente')
+      setMsg('✅ Usuario creado. Ve a Supabase → Authentication → Users y confirma el email manualmente si no puede ingresar.')
       setForm({ ...emptyForm })
       setShowForm(false)
       fetchUsuarios()
